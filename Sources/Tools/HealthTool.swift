@@ -9,9 +9,9 @@ import Foundation
 import FoundationModels
 import HealthKit
 
-/// `HealthTool` provides access to HealthKit data.
+/// `HealthTool` provides read access to HealthKit data.
 ///
-/// This tool can read, write, and analyze health data from the Health app.
+/// This tool can read health data from the Health app including steps, heart rate, workouts, and more.
 /// Important: This requires HealthKit entitlements and user permission.
 public struct HealthTool: Tool {
 
@@ -19,15 +19,11 @@ public struct HealthTool: Tool {
   public let name = "accessHealth"
   /// A brief description of the tool's functionality.
   public let description =
-    "Access and analyze health data including steps, heart rate, workouts, and more"
+    "Read health data including steps, heart rate, workouts, sleep, and activity metrics"
 
   /// Arguments for health data operations.
   @Generable
   public struct Arguments {
-    /// The action to perform: "read", "write", "summary", "trends"
-    @Guide(description: "The action to perform: 'read', 'write', 'summary', 'trends'")
-    public var action: String
-
     /// Type of health data: "steps", "heartRate", "weight", "height", "bloodPressure", "workouts", etc.
     @Guide(
       description:
@@ -43,34 +39,14 @@ public struct HealthTool: Tool {
     @Guide(description: "End date for data query (YYYY-MM-DD format)")
     public var endDate: String?
 
-    /// Value to write (for write action)
-    @Guide(description: "Value to write (for write action)")
-    public var value: Double?
-
-    /// Unit for the health data (e.g., "count", "kg", "bpm")
-    @Guide(description: "Unit for the health data (e.g., 'count', 'kg', 'bpm')")
-    public var unit: String?
-
-    /// Time period for trends: "day", "week", "month", "year"
-    @Guide(description: "Time period for trends: 'day', 'week', 'month', 'year'")
-    public var period: String?
-
     public init(
-      action: String = "",
       dataType: String? = nil,
       startDate: String? = nil,
-      endDate: String? = nil,
-      value: Double? = nil,
-      unit: String? = nil,
-      period: String? = nil
+      endDate: String? = nil
     ) {
-      self.action = action
       self.dataType = dataType
       self.startDate = startDate
       self.endDate = endDate
-      self.value = value
-      self.unit = unit
-      self.period = period
     }
   }
 
@@ -567,7 +543,6 @@ enum HealthError: Error, LocalizedError {
   case authorizationDenied
   case invalidDataType
   case missingDataType
-  case invalidAction
   case dataTypeNotAvailable
   case noData
 
@@ -581,9 +556,7 @@ enum HealthError: Error, LocalizedError {
       return
         "Invalid data type. Use 'steps', 'heartRate', 'workouts', 'sleep', 'activeEnergy', or 'distance'."
     case .missingDataType:
-      return "Data type is required for this action."
-    case .invalidAction:
-      return "Invalid action. Use 'read', 'write', 'summary', or 'trends'."
+      return "Data type is required."
     case .dataTypeNotAvailable:
       return "This health data type is not available."
     case .noData:

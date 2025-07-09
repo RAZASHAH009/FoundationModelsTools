@@ -43,10 +43,6 @@ public struct MusicTool: Tool {
     @Guide(description: "Limit for search results (default: 10, max: 25)")
     public var limit: Int?
 
-    /// Volume level (0.0 to 1.0) for volume control
-    @Guide(description: "Volume level (0.0 to 1.0) for volume control")
-    public var volume: Double?
-
     /// Specific song/album/artist ID to play
     @Guide(description: "Specific song/album/artist ID to play")
     public var mediaId: String?
@@ -56,14 +52,12 @@ public struct MusicTool: Tool {
       query: String? = nil,
       searchType: String? = nil,
       limit: Int? = nil,
-      volume: Double? = nil,
       mediaId: String? = nil
     ) {
       self.action = action
       self.query = query
       self.searchType = searchType
       self.limit = limit
-      self.volume = volume
       self.mediaId = mediaId
     }
   }
@@ -91,18 +85,14 @@ public struct MusicTool: Tool {
         query: arguments.query, type: arguments.searchType, limit: arguments.limit)
     case "play":
       return await playMusic(itemId: arguments.mediaId, query: arguments.query)
-    case "pause":
+    case "pause", "stop":
       return pauseMusic()
-    case "next":
+    case "skip", "next":
       return await skipToNext()
     case "previous":
       return await skipToPrevious()
-    case "currentsong":
+    case "nowplaying":
       return getCurrentSong()
-    case "playlists":
-      return await getUserPlaylists()
-    case "recommendations":
-      return await getRecommendations()
     default:
       return createErrorOutput(error: MusicError.invalidAction)
     }
@@ -350,92 +340,6 @@ public struct MusicTool: Tool {
     }
   }
 
-  private func getUserPlaylists() async -> ToolOutput {
-    do {
-      var request = MusicLibraryRequest<Playlist>()
-      request.limit = 20
-      let response = try await request.response()
-
-      var playlistDescription = ""
-
-      for (index, playlist) in response.items.enumerated() {
-        playlistDescription += "\(index + 1). \(playlist.name)\n"
-        if let description = playlist.curatorName {
-          playlistDescription += "   Curator: \(description)\n"
-        }
-        playlistDescription += "   ID: \(playlist.id)\n\n"
-      }
-
-      if playlistDescription.isEmpty {
-        playlistDescription = "No playlists found in your library"
-      }
-
-      return ToolOutput(
-        GeneratedContent(properties: [
-          "status": "success",
-          "playlistCount": response.items.count,
-          "playlists": playlistDescription.trimmingCharacters(in: .whitespacesAndNewlines),
-          "message": "Found \(response.items.count) playlist(s)",
-        ])
-      )
-    } catch {
-      return createErrorOutput(error: error)
-    }
-  }
-
-  private func getRecommendations() async -> ToolOutput {
-    do {
-      let request = MusicPersonalRecommendationsRequest()
-      let response = try await request.response()
-      let recommendations = response.recommendations
-
-      var recommendationDescription = ""
-
-      for (index, recommendation) in recommendations.prefix(5).enumerated() {
-        recommendationDescription += "\(index + 1). \(recommendation.title ?? "Recommendation")\n"
-
-        let items = recommendation.items
-        for item in items.prefix(3) {
-          recommendationDescription += "   • "
-
-          // Handle different enum cases for MusicPersonalRecommendation.Item
-          switch item {
-          case .album(let album):
-            recommendationDescription += "💿 \(album.title) by \(album.artistName)\n"
-          case .playlist(let playlist):
-            recommendationDescription += "📝 \(playlist.name)\n"
-          case .station(let station):
-            recommendationDescription += "📻 \(station.name)\n"
-          @unknown default:
-            recommendationDescription += "ID: \(item.id)\n"
-          }
-        }
-
-        if items.count > 3 {
-          recommendationDescription += "   ... and \(items.count - 3) more items\n"
-        }
-        recommendationDescription += "\n"
-      }
-
-      if recommendationDescription.isEmpty {
-        recommendationDescription =
-          "No personal recommendations available. Make sure you have Apple Music subscription and have been using the service."
-      }
-
-      return ToolOutput(
-        GeneratedContent(properties: [
-          "status": "success",
-          "recommendationCount": recommendations.count,
-          "recommendations": recommendationDescription.trimmingCharacters(
-            in: .whitespacesAndNewlines),
-          "message": "Found \(recommendations.count) personal recommendation(s)",
-        ])
-      )
-    } catch {
-      return createErrorOutput(error: error)
-    }
-  }
-
   private func formatDuration(_ duration: TimeInterval) -> String {
     let minutes = Int(duration) / 60
     let seconds = Int(duration) % 60
@@ -464,7 +368,7 @@ enum MusicError: Error, LocalizedError {
     switch self {
     case .invalidAction:
       return
-        "Invalid action. Use 'search', 'play', 'pause', 'next', 'previous', 'currentSong', 'playlists', or 'recommendations'."
+        "Invalid action. Use 'search', 'play', 'pause', 'stop', 'skip', 'next', 'previous', or 'nowPlaying'."
     case .authorizationDenied:
       return "Apple Music access denied. Please grant permission in Settings."
     case .missingQuery:
