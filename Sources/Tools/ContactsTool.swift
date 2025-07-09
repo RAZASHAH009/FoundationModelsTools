@@ -78,6 +78,8 @@ public struct ContactsTool: Tool {
 
   private let store = CNContactStore()
 
+  public init() {}
+
   public func call(arguments: Arguments) async throws -> ToolOutput {
     // Request access if needed
     let authorized = await requestAccess()
