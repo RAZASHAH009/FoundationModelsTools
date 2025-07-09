@@ -80,7 +80,7 @@ public struct RemindersTool: Tool {
     }
   }
 
-  private let eventStore = EKEventStore()
+  nonisolated(unsafe) private let eventStore = EKEventStore()
 
   public init() {}
 
