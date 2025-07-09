@@ -1,10 +1,10 @@
 # Foundation Models Tools
 
-A collection of tools for Apple's Foundation Models Framework that enable AI models to interact with system frameworks and external services.
+A collection of tools for Apple's Foundation Models Framework that enable you to interact with system frameworks and external services.
 
 ## Overview
 
-FoundationModelsTools provides a set of pre-built tools that extend the capabilities of AI models using Apple's Foundation Models Framework. These tools allow models to:
+**FoundationModelsTools** provides a set of pre-built tools that extend the capabilities of AI models using Apple's Foundation Models Framework. These tools allow you to:
 
 - Access and manage calendar events
 - Read and create contacts
@@ -18,32 +18,19 @@ FoundationModelsTools provides a set of pre-built tools that extend the capabili
 
 ## Requirements
 
-- macOS 15.3+ (v26)
-- iOS 18.3+ (v26)
+- macOS 26.0+
+- iOS 26.0+
 - Swift 6.2+
-- Xcode 16.0+
+- Xcode 26.0+
 
 ## Installation
 
-Add FoundationModelsTools as a dependency in your `Package.swift`:
+Add **FoundationModelsTools** as a dependency in your `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/yourusername/FoundationModelsTools", from: "1.0.0")
+    .package(url: "https://github.com/rudrankriyam/FoundationModelsTools", from: "0.1.0")
 ]
-```
-
-## Usage
-
-Each tool conforms to the `Tool` protocol from FoundationModels and can be used with AI models:
-
-```swift
-import FoundationModels
-import FoundationModelsTools
-
-// Example: Using the WebTool
-let webTool = WebTool()
-let searchResults = try await model.use(tool: webTool, with: WebTool.Arguments(query: "Swift programming"))
 ```
 
 ## Available Tools
@@ -85,4 +72,4 @@ Some tools require API keys or special entitlements:
 
 ## License
 
-[Add your license here]
+[MIT License](LICENSE)
