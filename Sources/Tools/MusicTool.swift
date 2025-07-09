@@ -9,45 +9,71 @@ import Foundation
 import FoundationModels
 import MusicKit
 
-/// `MusicTool` provides access to Apple Music library and playback controls.
+/// `MusicTool` provides access to Apple Music functionality.
 ///
-/// This tool can search music, play songs, create playlists, and get recommendations.
+/// This tool can play, pause, search for music, and control playback.
 /// Important: This requires Apple Music access and user permission.
-struct MusicTool: Tool {
-  
+public struct MusicTool: Tool {
+
   /// The name of the tool, used for identification.
-  let name = "accessMusic"
+  public let name = "controlMusic"
   /// A brief description of the tool's functionality.
-  let description = "Search and play music, manage playlists, get recommendations from Apple Music"
-  
+  public let description = "Control Apple Music playback and search for songs, albums, and artists"
+
   /// Arguments for music operations.
   @Generable
-  struct Arguments {
-    /// The action to perform: "search", "play", "pause", "next", "previous", "currentSong", "playlists", "recommendations"
-    @Guide(description: "The action to perform: 'search', 'play', 'pause', 'next', 'previous', 'currentSong', 'playlists', 'recommendations'")
-    var action: String
-    
-    /// Search query for songs, artists, or albums
-    @Guide(description: "Search query for songs, artists, or albums")
-    var query: String?
-    
-    /// Type of search: "song", "artist", "album", "playlist"
-    @Guide(description: "Type of search: 'song', 'artist', 'album', 'playlist'")
-    var searchType: String?
-    
-    /// Maximum number of results (defaults to 10)
-    @Guide(description: "Maximum number of results (defaults to 10)")
-    var limit: Int?
-    
-    /// Song or album ID to play
-    @Guide(description: "Song or album ID to play")
-    var itemId: String?
+  public struct Arguments {
+    /// The action to perform: "play", "pause", "stop", "skip", "previous", "search", "nowPlaying"
+    @Guide(
+      description:
+        "The action to perform: 'play', 'pause', 'stop', 'skip', 'previous', 'search', 'nowPlaying'"
+    )
+    public var action: String
+
+    /// Search query for finding music (for search action)
+    @Guide(description: "Search query for finding music (for search action)")
+    public var query: String?
+
+    /// Type of search: "songs", "albums", "artists", "playlists" (default: "songs")
+    @Guide(
+      description: "Type of search: 'songs', 'albums', 'artists', 'playlists' (default: 'songs')")
+    public var searchType: String?
+
+    /// Limit for search results (default: 10, max: 25)
+    @Guide(description: "Limit for search results (default: 10, max: 25)")
+    public var limit: Int?
+
+    /// Volume level (0.0 to 1.0) for volume control
+    @Guide(description: "Volume level (0.0 to 1.0) for volume control")
+    public var volume: Double?
+
+    /// Specific song/album/artist ID to play
+    @Guide(description: "Specific song/album/artist ID to play")
+    public var mediaId: String?
+
+    public init(
+      action: String = "",
+      query: String? = nil,
+      searchType: String? = nil,
+      limit: Int? = nil,
+      volume: Double? = nil,
+      mediaId: String? = nil
+    ) {
+      self.action = action
+      self.query = query
+      self.searchType = searchType
+      self.limit = limit
+      self.volume = volume
+      self.mediaId = mediaId
+    }
   }
-  
-  func call(arguments: Arguments) async throws -> ToolOutput {
+
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> ToolOutput {
     // Check if MusicKit is authorized
     let authStatus = MusicAuthorization.currentStatus
-    
+
     if authStatus != .authorized {
       if authStatus == .notDetermined {
         let status = await MusicAuthorization.request()
@@ -58,12 +84,13 @@ struct MusicTool: Tool {
         return createErrorOutput(error: MusicError.authorizationDenied)
       }
     }
-    
+
     switch arguments.action.lowercased() {
     case "search":
-      return await searchMusic(query: arguments.query, type: arguments.searchType, limit: arguments.limit)
+      return await searchMusic(
+        query: arguments.query, type: arguments.searchType, limit: arguments.limit)
     case "play":
-      return await playMusic(itemId: arguments.itemId, query: arguments.query)
+      return await playMusic(itemId: arguments.mediaId, query: arguments.query)
     case "pause":
       return pauseMusic()
     case "next":
@@ -80,20 +107,21 @@ struct MusicTool: Tool {
       return createErrorOutput(error: MusicError.invalidAction)
     }
   }
-  
+
   private func searchMusic(query: String?, type: String?, limit: Int?) async -> ToolOutput {
     guard let query = query, !query.isEmpty else {
       return createErrorOutput(error: MusicError.missingQuery)
     }
-    
+
     let searchLimit = limit ?? 10
-    var request = MusicCatalogSearchRequest(term: query, types: [Song.self, Artist.self, Album.self])
+    var request = MusicCatalogSearchRequest(
+      term: query, types: [Song.self, Artist.self, Album.self])
     request.limit = searchLimit
-    
+
     do {
       let response = try await request.response()
       var resultDescription = ""
-      
+
       // Process songs
       if !response.songs.isEmpty {
         resultDescription += "🎵 Songs:\n"
@@ -105,7 +133,7 @@ struct MusicTool: Tool {
           resultDescription += "   ID: \(song.id)\n\n"
         }
       }
-      
+
       // Process artists
       if !response.artists.isEmpty {
         resultDescription += "👤 Artists:\n"
@@ -114,12 +142,12 @@ struct MusicTool: Tool {
           resultDescription += "   ID: \(artist.id)\n\n"
         }
       }
-      
+
       // Process albums
       if !response.albums.isEmpty {
         resultDescription += "💿 Albums:\n"
         for (index, album) in response.albums.prefix(3).enumerated() {
-            resultDescription += "\(index + 1). \"\(album.title)\" by \(album.artistName)\n"
+          resultDescription += "\(index + 1). \"\(album.title)\" by \(album.artistName)\n"
           if let releaseDate = album.releaseDate {
             let formatter = DateFormatter()
             formatter.dateStyle = .medium
@@ -128,44 +156,45 @@ struct MusicTool: Tool {
           resultDescription += "   ID: \(album.id)\n\n"
         }
       }
-      
+
       if resultDescription.isEmpty {
         resultDescription = "No results found for '\(query)'"
       }
-      
+
       return ToolOutput(
         GeneratedContent(properties: [
           "status": "success",
           "query": query,
           "resultCount": response.songs.count + response.artists.count + response.albums.count,
           "results": resultDescription.trimmingCharacters(in: .whitespacesAndNewlines),
-          "message": "Found music matching '\(query)'"
+          "message": "Found music matching '\(query)'",
         ])
       )
     } catch {
       return createErrorOutput(error: error)
     }
   }
-  
+
   private func playMusic(itemId: String?, query: String?) async -> ToolOutput {
     do {
       let player = ApplicationMusicPlayer.shared
 
       if let itemId = itemId {
         // Play specific item by ID
-        let request = MusicCatalogResourceRequest<Song>(matching: \.id, equalTo: MusicItemID(itemId))
+        let request = MusicCatalogResourceRequest<Song>(
+          matching: \.id, equalTo: MusicItemID(itemId))
         let response = try await request.response()
-        
+
         if let song = response.items.first {
           player.queue = [song]
           try await player.play()
-          
+
           return ToolOutput(
             GeneratedContent(properties: [
               "status": "success",
               "action": "play",
               "nowPlaying": "\(song.title) by \(song.artistName)",
-              "message": "Now playing: \(song.title)"
+              "message": "Now playing: \(song.title)",
             ])
           )
         } else {
@@ -176,17 +205,17 @@ struct MusicTool: Tool {
         var request = MusicCatalogSearchRequest(term: query, types: [Song.self])
         request.limit = 1
         let response = try await request.response()
-        
+
         if let song = response.songs.first {
           player.queue = [song]
           try await player.play()
-          
+
           return ToolOutput(
             GeneratedContent(properties: [
               "status": "success",
               "action": "play",
               "nowPlaying": "\(song.title) by \(song.artistName)",
-              "message": "Now playing: \(song.title)"
+              "message": "Now playing: \(song.title)",
             ])
           )
         } else {
@@ -199,7 +228,7 @@ struct MusicTool: Tool {
           GeneratedContent(properties: [
             "status": "success",
             "action": "resume",
-            "message": "Playback resumed"
+            "message": "Playback resumed",
           ])
         )
       }
@@ -207,54 +236,54 @@ struct MusicTool: Tool {
       return createErrorOutput(error: error)
     }
   }
-  
+
   private func pauseMusic() -> ToolOutput {
     let player = ApplicationMusicPlayer.shared
     player.pause()
-    
+
     return ToolOutput(
       GeneratedContent(properties: [
         "status": "success",
         "action": "pause",
-        "message": "Playback paused"
+        "message": "Playback paused",
       ])
     )
   }
-  
+
   private func skipToNext() async -> ToolOutput {
     let player = ApplicationMusicPlayer.shared
-    
+
     do {
       try await player.skipToNextEntry()
       return ToolOutput(
         GeneratedContent(properties: [
           "status": "success",
           "action": "next",
-          "message": "Skipped to next song"
+          "message": "Skipped to next song",
         ])
       )
     } catch {
       return createErrorOutput(error: error)
     }
   }
-  
+
   private func skipToPrevious() async -> ToolOutput {
     let player = ApplicationMusicPlayer.shared
-    
+
     do {
       try await player.skipToPreviousEntry()
       return ToolOutput(
         GeneratedContent(properties: [
           "status": "success",
           "action": "previous",
-          "message": "Skipped to previous song"
+          "message": "Skipped to previous song",
         ])
       )
     } catch {
       return createErrorOutput(error: error)
     }
   }
-  
+
   private func getCurrentSong() -> ToolOutput {
     let player = ApplicationMusicPlayer.shared
 
@@ -262,13 +291,13 @@ struct MusicTool: Tool {
       return ToolOutput(
         GeneratedContent(properties: [
           "status": "success",
-          "message": "No song currently playing"
+          "message": "No song currently playing",
         ])
       )
     }
-    
+
     // Check if the entry has an item (non-transient)
-    if case let .song(song) = nowPlaying.item {
+    if case .song(let song) = nowPlaying.item {
       if let album = song.albumTitle {
         return ToolOutput(
           GeneratedContent(properties: [
@@ -278,7 +307,7 @@ struct MusicTool: Tool {
             "title": song.title,
             "artist": song.artistName,
             "album": album,
-            "message": "Currently playing: \(song.title) by \(song.artistName)"
+            "message": "Currently playing: \(song.title) by \(song.artistName)",
           ])
         )
       } else {
@@ -289,7 +318,7 @@ struct MusicTool: Tool {
             "playbackState": String(describing: player.state.playbackStatus),
             "title": song.title,
             "artist": song.artistName,
-            "message": "Currently playing: \(song.title) by \(song.artistName)"
+            "message": "Currently playing: \(song.title) by \(song.artistName)",
           ])
         )
       }
@@ -299,7 +328,7 @@ struct MusicTool: Tool {
           "status": "success",
           "id": item.id.rawValue,
           "playbackState": String(describing: player.state.playbackStatus),
-          "message": "Currently playing: \(item.id)"
+          "message": "Currently playing: \(item.id)",
         ])
       )
     } else if let transientItem = nowPlaying.transientItem {
@@ -308,27 +337,27 @@ struct MusicTool: Tool {
         GeneratedContent(properties: [
           "status": "success",
           "message": "Loading: \(transientItem.id)",
-          "isTransient": true
+          "isTransient": true,
         ])
       )
     } else {
       return ToolOutput(
         GeneratedContent(properties: [
           "status": "success",
-          "message": "Unknown playback state"
+          "message": "Unknown playback state",
         ])
       )
     }
   }
-  
+
   private func getUserPlaylists() async -> ToolOutput {
     do {
       var request = MusicLibraryRequest<Playlist>()
       request.limit = 20
       let response = try await request.response()
-      
+
       var playlistDescription = ""
-      
+
       for (index, playlist) in response.items.enumerated() {
         playlistDescription += "\(index + 1). \(playlist.name)\n"
         if let description = playlist.curatorName {
@@ -336,87 +365,89 @@ struct MusicTool: Tool {
         }
         playlistDescription += "   ID: \(playlist.id)\n\n"
       }
-      
+
       if playlistDescription.isEmpty {
         playlistDescription = "No playlists found in your library"
       }
-      
+
       return ToolOutput(
         GeneratedContent(properties: [
           "status": "success",
           "playlistCount": response.items.count,
           "playlists": playlistDescription.trimmingCharacters(in: .whitespacesAndNewlines),
-          "message": "Found \(response.items.count) playlist(s)"
+          "message": "Found \(response.items.count) playlist(s)",
         ])
       )
     } catch {
       return createErrorOutput(error: error)
     }
   }
-  
-    private func getRecommendations() async -> ToolOutput {
-        do {
-            let request = MusicPersonalRecommendationsRequest()
-            let response = try await request.response()
-            let recommendations = response.recommendations
-            
-            var recommendationDescription = ""
-            
-            for (index, recommendation) in recommendations.prefix(5).enumerated() {
-                recommendationDescription += "\(index + 1). \(recommendation.title ?? "Recommendation")\n"
-                
-                let items = recommendation.items
-                for item in items.prefix(3) {
-                    recommendationDescription += "   • "
-                    
-                    // Handle different enum cases for MusicPersonalRecommendation.Item
-                    switch item {
-                    case .album(let album):
-                        recommendationDescription += "💿 \(album.title) by \(album.artistName)\n"
-                    case .playlist(let playlist):
-                        recommendationDescription += "📝 \(playlist.name)\n"
-                    case .station(let station):
-                        recommendationDescription += "📻 \(station.name)\n"
-                    @unknown default:
-                        recommendationDescription += "ID: \(item.id)\n"
-                    }
-                }
-                
-                if items.count > 3 {
-                    recommendationDescription += "   ... and \(items.count - 3) more items\n"
-                }
-                recommendationDescription += "\n"
-            }
-            
-            if recommendationDescription.isEmpty {
-                recommendationDescription = "No personal recommendations available. Make sure you have Apple Music subscription and have been using the service."
-            }
-            
-            return ToolOutput(
-                GeneratedContent(properties: [
-                    "status": "success",
-                    "recommendationCount": recommendations.count,
-                    "recommendations": recommendationDescription.trimmingCharacters(in: .whitespacesAndNewlines),
-                    "message": "Found \(recommendations.count) personal recommendation(s)"
-                ])
-            )
-        } catch {
-            return createErrorOutput(error: error)
+
+  private func getRecommendations() async -> ToolOutput {
+    do {
+      let request = MusicPersonalRecommendationsRequest()
+      let response = try await request.response()
+      let recommendations = response.recommendations
+
+      var recommendationDescription = ""
+
+      for (index, recommendation) in recommendations.prefix(5).enumerated() {
+        recommendationDescription += "\(index + 1). \(recommendation.title ?? "Recommendation")\n"
+
+        let items = recommendation.items
+        for item in items.prefix(3) {
+          recommendationDescription += "   • "
+
+          // Handle different enum cases for MusicPersonalRecommendation.Item
+          switch item {
+          case .album(let album):
+            recommendationDescription += "💿 \(album.title) by \(album.artistName)\n"
+          case .playlist(let playlist):
+            recommendationDescription += "📝 \(playlist.name)\n"
+          case .station(let station):
+            recommendationDescription += "📻 \(station.name)\n"
+          @unknown default:
+            recommendationDescription += "ID: \(item.id)\n"
+          }
         }
+
+        if items.count > 3 {
+          recommendationDescription += "   ... and \(items.count - 3) more items\n"
+        }
+        recommendationDescription += "\n"
+      }
+
+      if recommendationDescription.isEmpty {
+        recommendationDescription =
+          "No personal recommendations available. Make sure you have Apple Music subscription and have been using the service."
+      }
+
+      return ToolOutput(
+        GeneratedContent(properties: [
+          "status": "success",
+          "recommendationCount": recommendations.count,
+          "recommendations": recommendationDescription.trimmingCharacters(
+            in: .whitespacesAndNewlines),
+          "message": "Found \(recommendations.count) personal recommendation(s)",
+        ])
+      )
+    } catch {
+      return createErrorOutput(error: error)
     }
-  
+  }
+
   private func formatDuration(_ duration: TimeInterval) -> String {
     let minutes = Int(duration) / 60
     let seconds = Int(duration) % 60
     return String(format: "%d:%02d", minutes, seconds)
   }
-  
+
   private func createErrorOutput(error: Error) -> ToolOutput {
     return ToolOutput(
       GeneratedContent(properties: [
         "status": "error",
         "error": error.localizedDescription,
-        "message": "Failed to perform music operation"
+        "message": "Failed to perform music operation",
       ])
     )
   }
@@ -428,11 +459,12 @@ enum MusicError: Error, LocalizedError {
   case missingQuery
   case itemNotFound
   case noResults
-  
+
   var errorDescription: String? {
     switch self {
     case .invalidAction:
-      return "Invalid action. Use 'search', 'play', 'pause', 'next', 'previous', 'currentSong', 'playlists', or 'recommendations'."
+      return
+        "Invalid action. Use 'search', 'play', 'pause', 'next', 'previous', 'currentSong', 'playlists', or 'recommendations'."
     case .authorizationDenied:
       return "Apple Music access denied. Please grant permission in Settings."
     case .missingQuery:

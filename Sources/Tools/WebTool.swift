@@ -9,55 +9,87 @@ import Foundation
 import FoundationModels
 import SwiftUI
 
-/// `WebTool` is a utility that provides web search functionality using the Exa API.
+/// `WebTool` provides web search and research capabilities using Exa.
 ///
-/// This tool fetches search results including titles, descriptions, and content summaries for a specified query.
-/// It uses the Exa AI-powered search API to get high-quality, relevant search results.
-struct WebTool: Tool {
+/// This tool can search the web for relevant content and information.
+/// Important: This requires an Exa API key set in environment variables.
+public struct WebTool: Tool {
 
   /// The name of the tool, used for identification.
-  let name = "searchWeb"
+  public let name = "searchWeb"
   /// A brief description of the tool's functionality.
-  let description = "Search the web using Exa AI for high-quality, relevant information on any topic"
+  public let description = "Search the web for relevant content and information using Exa"
 
-  /// Arguments required to perform web search.
+  /// Arguments for web search operations.
   @Generable
-  struct Arguments {
-    /// The search query to look up (e.g., "Swift programming", "climate change", "latest news").
-    @Guide(
-      description: "The search query to look up (e.g., 'Swift programming', 'climate change', 'latest news')")
-    var query: String
+  public struct Arguments {
+    /// The search query to execute
+    @Guide(description: "The search query to execute")
+    public var query: String
+
+    /// Number of results to return (default: 5, max: 10)
+    @Guide(description: "Number of results to return (default: 5, max: 10)")
+    public var numResults: Int?
+
+    /// Type of search: "neural" or "keyword" (default: "neural")
+    @Guide(description: "Type of search: 'neural' or 'keyword' (default: 'neural')")
+    public var type: String?
+
+    /// Whether to include page contents (default: true)
+    @Guide(description: "Whether to include page contents (default: true)")
+    public var includeContents: Bool?
+
+    /// Category filter (e.g., "news", "research", "company", "social")
+    @Guide(description: "Category filter (e.g., 'news', 'research', 'company', 'social')")
+    public var category: String?
+
+    public init(
+      query: String = "",
+      numResults: Int? = nil,
+      type: String? = nil,
+      includeContents: Bool? = nil,
+      category: String? = nil
+    ) {
+      self.query = query
+      self.numResults = numResults
+      self.type = type
+      self.includeContents = includeContents
+      self.category = category
+    }
   }
 
   /// The search data returned by the tool.
-  struct SearchData: Encodable {
+  public struct SearchData: Encodable {
     /// The search query that was performed.
-    let query: String
+    public let query: String
     /// Abstract text from the search results.
-    let abstract: String
+    public let abstract: String
     /// Source of the abstract information.
-    let abstractSource: String
+    public let abstractSource: String
     /// URL for more information.
-    let abstractURL: String
+    public let abstractURL: String
     /// Related topics found.
-    let relatedTopics: [String]
+    public let relatedTopics: [String]
     /// Search results summary.
-    let summary: String
+    public let summary: String
   }
 
-  /// The Exa web service for performing searches
-  private let exaWebService = ExaWebService()
-  
+  private let exaService: ExaWebService
+
   /// AppStorage for the API key
   @AppStorage("exaAPIKey") private var exaAPIKey: String = ""
 
-  func call(arguments: Arguments) async throws -> ToolOutput {
+  public init() {
+    self.exaService = ExaWebService()
+  }
+
+  public func call(arguments: Arguments) async throws -> ToolOutput {
     let searchQuery = arguments.query.trimmingCharacters(in: .whitespacesAndNewlines)
-    
+
     guard !searchQuery.isEmpty else {
       return createErrorOutput(for: searchQuery, error: WebError.emptyQuery)
     }
-    
+
     guard !exaAPIKey.isEmpty else {
       return createErrorOutput(for: searchQuery, error: WebError.missingAPIKey)
     }
@@ -72,8 +104,8 @@ struct WebTool: Tool {
 
   private func performWebSearch(query: String) async throws -> SearchData {
     do {
-      let exaResponse = try await exaWebService.search(query: query, apiKey: exaAPIKey)
-      
+      let exaResponse = try await exaService.search(query: query, apiKey: exaAPIKey)
+
       return SearchData(
         query: query,
         abstract: extractMainContent(from: exaResponse),
@@ -88,7 +120,7 @@ struct WebTool: Tool {
       throw WebError.networkError(error)
     }
   }
-  
+
   // Helper methods for extracting data from Exa Search response
   private func extractMainContent(from response: ExaSearchResponse) -> String {
     if let firstResult = response.results.first {
@@ -96,26 +128,26 @@ struct WebTool: Tool {
     }
     return ""
   }
-  
+
   private func extractSource(from response: ExaSearchResponse) -> String {
     return response.results.first?.author ?? response.results.first?.title ?? ""
   }
-  
+
   private func extractURL(from response: ExaSearchResponse) -> String {
     return response.results.first?.url ?? ""
   }
-  
+
   private func extractRelatedTopics(from response: ExaSearchResponse) -> [String] {
     return response.results.prefix(3).map { $0.title }
   }
 
   private func createSearchSummary(from response: ExaSearchResponse, query: String) -> String {
     var summary = "Information about '\(query)':\n\n"
-    
+
     if !response.results.isEmpty {
       // Combine text content from all results
       var combinedText = ""
-      
+
       for result in response.results.prefix(3) {
         if let resultSummary = result.summary, !resultSummary.isEmpty {
           combinedText += "\(resultSummary)\n\n"
@@ -124,12 +156,12 @@ struct WebTool: Tool {
           combinedText += "\(truncatedText)...\n\n"
         }
       }
-      
+
       summary += combinedText.isEmpty ? "No detailed text content available." : combinedText
     } else {
       summary += "No results found for this query."
     }
-    
+
     return summary
   }
 
@@ -141,7 +173,7 @@ struct WebTool: Tool {
         "abstractSource": searchData.abstractSource,
         "relatedTopicsCount": searchData.relatedTopics.count,
         "summary": searchData.summary,
-        "status": "success"
+        "status": "success",
       ]))
   }
 
@@ -154,7 +186,7 @@ struct WebTool: Tool {
         "abstractSource": "",
         "relatedTopicsCount": 0,
         "summary": "Search failed for query: '\(query)'",
-        "status": "error"
+        "status": "error",
       ]))
   }
 }

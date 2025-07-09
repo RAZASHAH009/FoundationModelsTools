@@ -13,55 +13,78 @@ import FoundationModels
 ///
 /// This tool can create, read, update, and complete reminders.
 /// Important: This requires the Reminders entitlement and user permission.
-struct RemindersTool: Tool {
+public struct RemindersTool: Tool {
 
   /// The name of the tool, used for identification.
-  let name = "manageReminders"
+  public let name = "manageReminders"
   /// A brief description of the tool's functionality.
-  let description = "Create, read, update, complete, and query reminders from the Reminders app"
+  public let description =
+    "Create, read, update, complete, and query reminders from the Reminders app"
 
   /// Arguments for reminder operations.
   @Generable
-  struct Arguments {
+  public struct Arguments {
     /// The action to perform: "create", "query", "complete", "update", "delete"
     @Guide(description: "The action to perform: 'create', 'query', 'complete', 'update', 'delete'")
-    var action: String
+    public var action: String
 
     /// Title of the reminder
     @Guide(description: "Title of the reminder")
-    var title: String?
+    public var title: String?
 
     /// Notes for the reminder
     @Guide(description: "Notes for the reminder")
-    var notes: String?
+    public var notes: String?
 
     /// Due date in format YYYY-MM-DD HH:mm:ss (24-hour format). Examples: '2025-01-15 17:00:00' for tomorrow at 5 PM
     @Guide(
       description:
         "Due date in format YYYY-MM-DD HH:mm:ss (24-hour format). Examples: '2025-01-15 17:00:00' for tomorrow at 5 PM"
     )
-    var dueDate: String?
+    public var dueDate: String?
 
     /// Priority level: "none", "low", "medium", "high"
     @Guide(description: "Priority level: 'none', 'low', 'medium', 'high'")
-    var priority: String?
+    public var priority: String?
 
     /// List name (defaults to default reminders list)
     @Guide(description: "List name (defaults to default reminders list)")
-    var listName: String?
+    public var listName: String?
 
     /// Reminder identifier for updating/completing
     @Guide(description: "Reminder identifier for updating/completing")
-    var reminderId: String?
+    public var reminderId: String?
 
     /// Filter for querying: "all", "incomplete", "completed", "today", "overdue"
     @Guide(description: "Filter for querying: 'all', 'incomplete', 'completed', 'today', 'overdue'")
-    var filter: String?
+    public var filter: String?
+
+    public init(
+      action: String = "",
+      title: String? = nil,
+      notes: String? = nil,
+      dueDate: String? = nil,
+      priority: String? = nil,
+      listName: String? = nil,
+      reminderId: String? = nil,
+      filter: String? = nil
+    ) {
+      self.action = action
+      self.title = title
+      self.notes = notes
+      self.dueDate = dueDate
+      self.priority = priority
+      self.listName = listName
+      self.reminderId = reminderId
+      self.filter = filter
+    }
   }
 
   private let eventStore = EKEventStore()
 
-  func call(arguments: Arguments) async throws -> ToolOutput {
+  public init() {}
+
+  public func call(arguments: Arguments) async throws -> ToolOutput {
     // Request access if needed
     let authorized = await requestAccess()
     guard authorized else {

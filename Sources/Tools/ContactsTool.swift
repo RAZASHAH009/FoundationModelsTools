@@ -5,69 +5,89 @@
 //  Created by Rudrank Riyam on 6/17/25.
 //
 
+@preconcurrency import Contacts
 import Foundation
 import FoundationModels
-@preconcurrency import Contacts
 
-/// `ContactsTool` provides access to the user's contacts.
+/// `ContactsTool` provides access to the Contacts app.
 ///
-/// This tool can search, read, and create contacts in the user's address book.
+/// This tool can search, read, and create contacts.
 /// Important: This requires the Contacts entitlement and user permission.
-struct ContactsTool: Tool {
-  
+public struct ContactsTool: Tool {
+
   /// The name of the tool, used for identification.
-  let name = "manageContacts"
+  public let name = "manageContacts"
   /// A brief description of the tool's functionality.
-  let description = "Search, read, and create contacts in the address book"
-  
+  public let description = "Search, read, and create contacts from the Contacts app"
+
   /// Arguments for contact operations.
   @Generable
-  struct Arguments {
+  public struct Arguments {
     /// The action to perform: "search", "read", "create"
     @Guide(description: "The action to perform: 'search', 'read', 'create'")
-    var action: String
-    
-    /// Search query for finding contacts
-    @Guide(description: "Search query for finding contacts (name, email, phone)")
-    var query: String?
-    
-    /// Contact identifier for reading specific contact
-    @Guide(description: "Contact identifier for reading specific contact")
-    var contactId: String?
-    
-    /// Given name for creating new contact
-    @Guide(description: "Given name for creating new contact")
-    var givenName: String?
-    
-    /// Family name for creating new contact
-    @Guide(description: "Family name for creating new contact")
-    var familyName: String?
-    
-    /// Email address for creating new contact
-    @Guide(description: "Email address for creating new contact")
-    var email: String?
-    
-    /// Phone number for creating new contact
-    @Guide(description: "Phone number for creating new contact")
-    var phoneNumber: String?
-    
-    /// Organization name for creating new contact
-    @Guide(description: "Organization name for creating new contact")
-    var organization: String?
+    public var action: String
+
+    /// Name to search for (for search action)
+    @Guide(description: "Name to search for (for search action)")
+    public var name: String?
+
+    /// Contact identifier for reading
+    @Guide(description: "Contact identifier for reading")
+    public var contactId: String?
+
+    /// First name for creating contact
+    @Guide(description: "First name for creating contact")
+    public var firstName: String?
+
+    /// Last name for creating contact
+    @Guide(description: "Last name for creating contact")
+    public var lastName: String?
+
+    /// Phone number for creating contact
+    @Guide(description: "Phone number for creating contact")
+    public var phoneNumber: String?
+
+    /// Email address for creating contact
+    @Guide(description: "Email address for creating contact")
+    public var email: String?
+
+    /// Organization for creating contact
+    @Guide(description: "Organization for creating contact")
+    public var organization: String?
+
+    public init(
+      action: String = "",
+      name: String? = nil,
+      contactId: String? = nil,
+      firstName: String? = nil,
+      lastName: String? = nil,
+      phoneNumber: String? = nil,
+      email: String? = nil,
+      organization: String? = nil
+    ) {
+      self.action = action
+      self.name = name
+      self.contactId = contactId
+      self.firstName = firstName
+      self.lastName = lastName
+      self.phoneNumber = phoneNumber
+      self.email = email
+      self.organization = organization
+    }
   }
-  
+
   private let store = CNContactStore()
-  
-  func call(arguments: Arguments) async throws -> ToolOutput {
+
+  public func call(arguments: Arguments) async throws -> ToolOutput {
     // Request access if needed
     let authorized = await requestAccess()
     guard authorized else {
       return createErrorOutput(error: ContactsError.accessDenied)
     }
-    
+
     switch arguments.action.lowercased() {
     case "search":
-      return try searchContacts(query: arguments.query)
+      return try searchContacts(query: arguments.name)
     case "read":
       return try readContact(contactId: arguments.contactId)
     case "create":
@@ -76,7 +96,7 @@ struct ContactsTool: Tool {
       return createErrorOutput(error: ContactsError.invalidAction)
     }
   }
-  
+
   private func requestAccess() async -> Bool {
     do {
       return try await store.requestAccess(for: .contacts)
@@ -84,33 +104,33 @@ struct ContactsTool: Tool {
       return false
     }
   }
-  
+
   private func searchContacts(query: String?) throws -> ToolOutput {
     guard let searchQuery = query, !searchQuery.isEmpty else {
       return createErrorOutput(error: ContactsError.missingQuery)
     }
-    
+
     let keysToFetch: [CNKeyDescriptor] = [
       CNContactGivenNameKey as CNKeyDescriptor,
       CNContactFamilyNameKey as CNKeyDescriptor,
       CNContactEmailAddressesKey as CNKeyDescriptor,
       CNContactPhoneNumbersKey as CNKeyDescriptor,
       CNContactOrganizationNameKey as CNKeyDescriptor,
-      CNContactIdentifierKey as CNKeyDescriptor
+      CNContactIdentifierKey as CNKeyDescriptor,
     ]
-    
+
     let predicate = CNContact.predicateForContacts(matchingName: searchQuery)
-    
+
     do {
       let contacts = try store.unifiedContacts(matching: predicate, keysToFetch: keysToFetch)
-      
+
       if contacts.isEmpty {
         // Try searching by email or phone
         let allContacts = try store.unifiedContacts(
           matching: NSPredicate(value: true),
           keysToFetch: keysToFetch
         )
-        
+
         let filteredContacts = allContacts.filter { contact in
           // Check emails
           for email in contact.emailAddresses {
@@ -126,21 +146,21 @@ struct ContactsTool: Tool {
           }
           return false
         }
-        
+
         return formatContactsOutput(contacts: filteredContacts, query: searchQuery)
       }
-      
+
       return formatContactsOutput(contacts: contacts, query: searchQuery)
     } catch {
       return createErrorOutput(error: error)
     }
   }
-  
+
   private func readContact(contactId: String?) throws -> ToolOutput {
     guard let id = contactId else {
       return createErrorOutput(error: ContactsError.missingContactId)
     }
-    
+
     let keysToFetch: [CNKeyDescriptor] = [
       CNContactGivenNameKey as CNKeyDescriptor,
       CNContactFamilyNameKey as CNKeyDescriptor,
@@ -149,69 +169,74 @@ struct ContactsTool: Tool {
       CNContactOrganizationNameKey as CNKeyDescriptor,
       CNContactPostalAddressesKey as CNKeyDescriptor,
       CNContactBirthdayKey as CNKeyDescriptor,
-      CNContactNoteKey as CNKeyDescriptor
+      CNContactNoteKey as CNKeyDescriptor,
     ]
-    
+
     do {
       let contact = try store.unifiedContact(withIdentifier: id, keysToFetch: keysToFetch)
-      
+
       var addresses: [String] = []
       for address in contact.postalAddresses {
         let value = address.value
         let formatted = "\(value.street), \(value.city), \(value.state) \(value.postalCode)"
         addresses.append(formatted)
       }
-      
+
       return ToolOutput(
         GeneratedContent(properties: [
           "status": "success",
           "contactId": contact.identifier,
           "givenName": contact.givenName,
           "familyName": contact.familyName,
-          "fullName": "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces),
+          "fullName": "\(contact.givenName) \(contact.familyName)".trimmingCharacters(
+            in: .whitespaces),
           "organization": contact.organizationName,
           "emails": contact.emailAddresses.map { $0.value as String },
           "phoneNumbers": contact.phoneNumbers.map { $0.value.stringValue },
           "addresses": addresses,
           "birthday": contact.birthday?.date?.description ?? "",
-          "note": contact.note
+          "note": contact.note,
         ])
       )
     } catch {
       return createErrorOutput(error: error)
     }
   }
-  
+
   private func createContact(arguments: Arguments) throws -> ToolOutput {
-    guard let givenName = arguments.givenName, !givenName.isEmpty else {
+    guard let firstName = arguments.firstName, !firstName.isEmpty else {
       return createErrorOutput(error: ContactsError.missingName)
     }
-    
+
     let newContact = CNMutableContact()
-    newContact.givenName = givenName
-    
-    if let familyName = arguments.familyName {
-      newContact.familyName = familyName
+    newContact.givenName = firstName
+
+    if let lastName = arguments.lastName {
+      newContact.familyName = lastName
     }
-    
+
     if let email = arguments.email {
-      newContact.emailAddresses = [CNLabeledValue(label: CNLabelHome, value: NSString(string: email))]
+      newContact.emailAddresses = [
+        CNLabeledValue(label: CNLabelHome, value: NSString(string: email))
+      ]
     }
-    
+
     if let phone = arguments.phoneNumber {
-      newContact.phoneNumbers = [CNLabeledValue(label: CNLabelPhoneNumberMobile, value: CNPhoneNumber(stringValue: phone))]
+      newContact.phoneNumbers = [
+        CNLabeledValue(label: CNLabelPhoneNumberMobile, value: CNPhoneNumber(stringValue: phone))
+      ]
     }
-    
+
     if let org = arguments.organization {
       newContact.organizationName = org
     }
-    
+
     let saveRequest = CNSaveRequest()
     saveRequest.add(newContact, toContainerWithIdentifier: nil)
-    
+
     do {
       try store.execute(saveRequest)
-      
+
       return ToolOutput(
         GeneratedContent(properties: [
           "status": "success",
@@ -219,50 +244,51 @@ struct ContactsTool: Tool {
           "contactId": newContact.identifier,
           "givenName": newContact.givenName,
           "familyName": newContact.familyName,
-          "fullName": "\(newContact.givenName) \(newContact.familyName)".trimmingCharacters(in: .whitespaces),
+          "fullName": "\(newContact.givenName) \(newContact.familyName)".trimmingCharacters(
+            in: .whitespaces),
           "email": arguments.email ?? "",
           "phoneNumber": arguments.phoneNumber ?? "",
-          "organization": arguments.organization ?? ""
+          "organization": arguments.organization ?? "",
         ])
       )
     } catch {
       return createErrorOutput(error: error)
     }
   }
-  
+
   private func formatContactsOutput(contacts: [CNContact], query: String) -> ToolOutput {
     var contactsDescription = ""
-    
+
     for (index, contact) in contacts.enumerated() {
       let name = "\(contact.givenName) \(contact.familyName)".trimmingCharacters(in: .whitespaces)
       let email = contact.emailAddresses.first?.value as String? ?? "No email"
       let phone = contact.phoneNumbers.first?.value.stringValue ?? "No phone"
       let org = contact.organizationName.isEmpty ? "" : " (\(contact.organizationName))"
-      
+
       contactsDescription += "\(index + 1). \(name)\(org) - Email: \(email), Phone: \(phone)\n"
     }
-    
+
     if contactsDescription.isEmpty {
       contactsDescription = "No contacts found matching '\(query)'"
     }
-    
+
     return ToolOutput(
       GeneratedContent(properties: [
         "status": "success",
         "query": query,
         "count": contacts.count,
         "results": contactsDescription.trimmingCharacters(in: .whitespacesAndNewlines),
-        "message": "Found \(contacts.count) contact(s) matching '\(query)'"
+        "message": "Found \(contacts.count) contact(s) matching '\(query)'",
       ])
     )
   }
-  
+
   private func createErrorOutput(error: Error) -> ToolOutput {
     return ToolOutput(
       GeneratedContent(properties: [
         "status": "error",
         "error": error.localizedDescription,
-        "message": "Failed to perform contact operation"
+        "message": "Failed to perform contact operation",
       ])
     )
   }
@@ -274,7 +300,7 @@ enum ContactsError: Error, LocalizedError {
   case missingQuery
   case missingContactId
   case missingName
-  
+
   var errorDescription: String? {
     switch self {
     case .accessDenied:
